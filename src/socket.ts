@@ -165,23 +165,27 @@ function socket({ io }: { io: Server }) {
       const users: any[] = [];
       //@ts-ignore
       for (let [username, stats] of Object.entries(rooms[roomId])) {
-        console.log(username, stats);
         if (username === "name") continue;
         users.push({ username, stats });
       }
 
       // emit event if number of users in room is equal to number of users with stats
       const socketsInRoom = io.sockets.adapter.rooms.get(roomId)?.size;
+
+      console.log("socketsInRoom: ", socketsInRoom);
+      console.log("users.length: ", users.length);
+
       if (socketsInRoom === users.length) {
+        console.log(users);
         io.in(roomId).emit("SENDING_STATS_SERVER", {
           users,
         });
       }
 
       // remove all users from room
-      rooms[roomId] = {
-        name: rooms[roomId].name,
-      };
+      // rooms[roomId] = {
+      //   name: rooms[roomId].name,
+      // };
     });
   });
 }
