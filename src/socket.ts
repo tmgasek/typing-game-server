@@ -114,7 +114,7 @@ function socket({ io }: { io: Server }) {
     });
 
     socket.on("GET_WORDS", ({ roomId }) => {
-      const words = generate();
+      const words = generate(3);
       // const words = "hello world";
 
       io.in(roomId).emit("WORDS", words);
@@ -200,6 +200,8 @@ function socket({ io }: { io: Server }) {
      */
     socket.on("UPDATE_INDEX", ({ roomId, username, charIndex }) => {
       const usersInRoom = rooms[roomId].users;
+      if (!usersInRoom) return;
+
       const user = usersInRoom.find((user: any) => user.username === username);
 
       if (!user) return;
