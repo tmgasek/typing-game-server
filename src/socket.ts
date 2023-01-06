@@ -1,6 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { v4 as uuidv4 } from "uuid";
 import logger from "./utils/logger";
+import { generate } from "./utils/words";
 
 const EVENTS = {
   connection: "connection",
@@ -21,7 +22,7 @@ const EVENTS = {
   },
 };
 
-const rooms: Record<string, { name: string }> = {};
+const rooms: any = {};
 
 function socket({ io }: { io: Server }) {
   logger.info("Sockets enabled");
@@ -47,7 +48,7 @@ function socket({ io }: { io: Server }) {
     // send all rooms to client on connection
     socket.emit(EVENTS.SERVER.ROOMS, rooms);
 
-    const allUsers: any = [];
+    const allUsers: any[] = [];
     // send all users to client on connection
     for (let [id, socket] of io.of("/").sockets) {
       allUsers.push({
@@ -59,7 +60,6 @@ function socket({ io }: { io: Server }) {
     io.emit(EVENTS.SERVER.SEND_ALL_USERS, allUsers);
     socket.on("disconnect", () => {
       logger.info(`Client with id ${socket.id} disconnected`);
-      // TODO:
     });
 
     /*
@@ -111,12 +111,11 @@ function socket({ io }: { io: Server }) {
       console.log("GAME STARTED in room: ", roomId);
       // sends to all clients in room
       io.in(roomId).emit(EVENTS.SERVER.GAME_STARTED);
-
-      // const words = generate();
     });
 
     socket.on("GET_WORDS", ({ roomId }) => {
-      const words = "hello world";
+      const words = generate();
+      // const words = "hello world";
 
       io.in(roomId).emit("WORDS", words);
     });
@@ -127,13 +126,23 @@ function socket({ io }: { io: Server }) {
     socket.on(EVENTS.CLIENT.GET_PLAYERS_IN_ROOM, async ({ roomId }) => {
       const users: any[] = [];
       const sockets = await io.in(roomId).fetchSockets();
+
       sockets.forEach((socket) => {
+        // generate a color for each user
+        const color = `#${Math.floor(Math.random() * 16777215).toString(16)}`;
         users.push({
           userID: socket.id,
           //@ts-ignore
           username: socket.username,
+          color,
         });
       });
+
+      rooms[roomId] = {
+        ...rooms[roomId],
+        // @ts-ignore
+        users,
+      };
 
       io.in(roomId).emit(EVENTS.SERVER.SEND_PLAYERS_IN_ROOM, {
         users,
@@ -163,29 +172,47 @@ function socket({ io }: { io: Server }) {
 
       // make an an array of all users in room with stats
       const users: any[] = [];
-      //@ts-ignore
       for (let [username, stats] of Object.entries(rooms[roomId])) {
-        if (username === "name") continue;
-        users.push({ username, stats });
+        if (username !== "name" && username !== "users") {
+          users.push({ username, stats });
+        }
       }
+
+      console.log("users with stats: ", users);
 
       // emit event if number of users in room is equal to number of users with stats
       const socketsInRoom = io.sockets.adapter.rooms.get(roomId)?.size;
 
-      console.log("socketsInRoom: ", socketsInRoom);
-      console.log("users.length: ", users.length);
-
-      if (socketsInRoom === users.length) {
-        console.log(users);
+      if (socketsInRoom === users?.length) {
         io.in(roomId).emit("SENDING_STATS_SERVER", {
           users,
         });
-      }
 
-      // remove all users from room
-      // rooms[roomId] = {
-      //   name: rooms[roomId].name,
-      // };
+        // remove all users from room
+        rooms[roomId] = {
+          name: rooms[roomId].name,
+        };
+      }
+    });
+
+    /*
+     * Handle receiving updated character index
+     */
+    socket.on("UPDATE_INDEX", ({ roomId, username, charIndex }) => {
+      const usersInRoom = rooms[roomId].users;
+      const user = usersInRoom.find((user: any) => user.username === username);
+
+      if (!user) return;
+
+      io.in(roomId).emit("UPDATE_INDEX_SERVER", {
+        username,
+        charIndex,
+        color: user?.color,
+        // io.in(roomId).emit("UPDATE_INDEX_SERVER", {
+        //   username,
+        //   charIndex,
+        // });
+      });
     });
   });
 }
